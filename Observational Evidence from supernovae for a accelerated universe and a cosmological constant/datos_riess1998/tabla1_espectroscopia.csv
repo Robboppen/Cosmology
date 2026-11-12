@@ -1,0 +1,15 @@
+SN,fecha_UT,telescopio,rango_nm_min,rango_nm_max,z,origen_z,comparacion_Fig1
+1995ao,1995 Nov 23,Keck I,510,1000,0.24,lineas de la galaxia,1996X(-4)
+1995ap,1995 Nov 23,Keck I,510,1000,0.30,rasgos de la SN,1996X(-4)
+1996E,1996 Feb 23,ESO 3.6 m,600,990,0.43,lineas de la galaxia,1989B(+9)
+1996H,1996 Feb 23,ESO 3.6 m,600,990,0.62,lineas de la galaxia,1996X(+5)
+1996I,1996 Feb 23,ESO 3.6 m,600,990,0.57,rasgos de la SN,1996X(+5)
+1996J,1996 Feb 23,ESO 3.6 m,600,990,0.30,lineas de la galaxia,1995D(+0)
+1996K,1996 Feb 23,ESO 3.6 m,600,990,0.38,rasgos de la SN,1995D(+0)
+1996R,1996 Mar 18,MMT,400,900,0.16,lineas de la galaxia,1989B(+12)
+1996T,1996 Mar 18,MMT,400,900,0.24,lineas de la galaxia,1996X(-4)
+1996U,1996 Mar 18,MMT,400,900,0.43,lineas de la galaxia,1995D(+0)
+1997ce,1997 May 4,Keck II,570,940,0.44,rasgos de la SN,1995D(+0)
+1997cj,1997 May 2,MMT,400,900,0.50,lineas de la galaxia,...
+1997cj,1997 May 4,Keck II,570,940,0.50,rasgos de la SN,1995D(+0)
+1997ck,1997 May 4,Keck II,570,940,0.97,lineas de la galaxia,...
