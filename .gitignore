@@ -3,3 +3,4 @@ data_hsc_y1/
 *.fits.gz
 .ipynb_checkpoints/
 .DS_Store
+__pycache__/
