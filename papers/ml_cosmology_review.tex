@@ -1,0 +1,480 @@
+\documentclass[11pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+\usepackage[colorlinks=true,linkcolor=blue,citecolor=blue,urlcolor=blue]{hyperref}
+\usepackage[round]{natbib}
+\usepackage{csquotes}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{titlesec}
+
+\titleformat{\section}{\normalfont\Large\bfseries}{\thesection}{1em}{}
+\titleformat{\subsection}{\normalfont\large\bfseries}{\thesubsection}{1em}{}
+\titleformat{\subsubsection}{\normalfont\normalsize\bfseries\itshape}{\thesubsubsection}{1em}{}
+
+\title{Machine Learning Applied to Cosmology: \\ A Structured Review of Reference Papers}
+\author{Literature review compiled for research-topic evaluation}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent This document provides a structured, section-by-section review of eight papers gathered as reference material for a research line combining machine learning and cosmology. Six of the papers apply machine-learning-adjacent statistical tools (Gaussian Processes, neural-network emulators, wavelet scattering transforms) to weak-lensing and dark-energy inference problems; two additional papers, included for cosmological context, use purely classical statistical methods (MCMC fits to phenomenological interaction models) and are presented separately. Each paper is summarized under eight standardized headings covering its research question, motivation, data, methodology, cosmological application, results, and limitations, with a small number of direct verbatim quotations preserved where the authors' own formulation is load-bearing. A final synthesis section compares the papers' methodological choices and proposes candidate directions for future collaborative research.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%======================================================================
+\section{Bayesian Error Propagation for Neural-Net Based Parameter Inference}
+\label{sec:paper1}
+%======================================================================
+
+\subsection{Metadata}
+\textbf{Title:} Bayesian Error Propagation for Neural-Net Based Parameter Inference. \textbf{Authors:} Daniela Grandón, Elena Sellentin. \textbf{Year:} 2022. \textbf{Venue/ID:} The Open Journal of Astrophysics; arXiv:2205.11587 \citep{grandon2022bayesian}. \textbf{Elevator pitch:} the paper derives a closed-form Bayesian correction that folds a neural network's own validation-set approximation error into the posterior of cosmological parameters, removing the resulting bias without requiring a comparison against a non-approximate ("exact") computation.
+
+\subsection{Research Question(s)}
+The paper addresses how the approximation error of a trained neural-network emulator can be propagated into the posterior of cosmological parameters so that inference remains unbiased even when no non-approximate code is available for comparison. As the authors put it,
+
+\begin{quote}
+\enquote{a recurrent question has been how to propagate the neural net's approximation error, in order to avoid biases in the parameter inference} \citep[p.~1]{grandon2022bayesian}.
+\end{quote}
+
+\subsection{Hypothesis / Motivation}
+Neural-network emulators are increasingly used to accelerate cosmological inference (matter power spectra, CMB observables) ahead of Stage-IV surveys, but being approximators by construction they carry residual, unquantified errors. The standard validation practice — comparing a neural-net-based posterior against the posterior obtained from a classical, non-approximate Boltzmann code — is infeasible in a genuine research setting where the neural net is the only computationally tractable option. The authors' working hypothesis is that this uncertainty can be treated the same way other nuisance uncertainties are handled in Bayesian statistics: as an additional random variable to be marginalized, rather than ignored or checked only post hoc.
+
+\subsection{Data Used}
+The analysis is fully simulation-based: matter power spectra $P(k)$ over $k\in[0.0033,0.4]\,h/\mathrm{Mpc}$ are generated with CAMB by randomly drawing $H_0$, $\Omega_{\rm cdm}$, $\Omega_b$ from fixed prior ranges. A set of 10{,}000 spectra is split 70/20/10 into training, validation, and test batches to select the network architecture per $k$-range, and a further, independent set of 10{,}000 draws is generated specifically to estimate the neural net's bias $\bar{\Delta}$ and error covariance $\Sigma$. Two networks of deliberately different quality are trained for the demonstration: an ``accurate'' one ($\sim$3\% average error) and an ``inaccurate'' one (up to $\sim$40\% error).
+
+\subsection{ML Methodology}
+The core object is not a novel network architecture but a Bayesian post-processing layer applied on top of any trained emulator. The neural net's validation residuals $\Delta(p)=\mu(p)-\mu_{\rm NN}(p)$ are treated as a random variable, assumed Gaussian-distributed with mean $\bar{\Delta}$ and covariance $\Sigma$ estimated empirically from the validation set, and then marginalized analytically inside the likelihood:
+\begin{equation}
+P(p|x) \propto \int_{-\infty}^{+\infty} \mathcal{L}(x|p,\Delta)\,\pi(p)\,D(\Delta|\cdot)\,\mathrm{d}^n\Delta \, .
+\end{equation}
+For Gaussian data and Gaussian $\Delta$ this yields a closed-form ``adapted posterior''
+\begin{equation}
+P(p|x) \propto \exp\left(-\tfrac{1}{2}\left[\xi(p)-\bar\Delta\right]^{T}\Psi\left[\xi(p)-\bar\Delta\right]\right)\pi(p),\qquad \Psi=(C+\Sigma)^{-1},
+\end{equation}
+with $\xi(p)=x-\mu(p)$. Physically, $p$ are cosmological parameters ($H_0$, $\Omega_{\rm cdm}$, $\Omega_b$), the network output is the emulated $P(k)$, and $\Delta(p)$ represents the epistemic uncertainty of the surrogate model itself, injected as an extra noise term alongside the ordinary data covariance $C$. As the authors summarize:
+
+\begin{quote}
+\enquote{Eq.\ (7) hence eliminates neural net biases in the inference of cosmological parameters} \citep[p.~3]{grandon2022bayesian}.
+\end{quote}
+
+\subsection{Cosmological Application}
+The method is demonstrated on the inference of $\Omega_{\rm cdm}$, $\Omega_b$, and $H_0$ from synthetic matter power spectrum data.
+
+\subsection{Key Results}
+A naive plug-in of the neural net into the standard Gaussian likelihood produces a statistically significant bias in the recovered best fit — the fiducial cosmology is excluded from the credible contours — for both the accurate and, more severely, the inaccurate network. The adapted posterior restores the fiducial cosmology within the contours in both cases and appropriately widens the posterior, more so for the badly trained net, reflecting its larger covariance $\Sigma$. Gaussianity of $\Delta$ was checked via skewness, kurtosis, and Kolmogorov–Smirnov tests, and its approximate independence from cosmological parameters was verified through a sub-volume analysis.
+
+\begin{quote}
+\enquote{We present a Bayesian solution to propagating a neural net's approximation error and thereby debiasing parameter inference} \citep[p.~1]{grandon2022bayesian}.
+\end{quote}
+
+\subsection{Limitations / Open Questions}
+The method assumes the neural net's error is Gaussian-distributed and constant (or slowly varying) across parameter space; the authors note it can break down for bimodal or heavy-tailed error distributions, requiring either an extended analytic form for $D(\Delta)$ or improved network training. It also assumes independence between the prior on parameters and the prior on approximation errors, which can fail if training data is unrepresentative of some region of parameter space. Finally, the demonstration is limited to a synthetic three-parameter $P(k)$ setup rather than a full survey-scale inference pipeline.
+
+%======================================================================
+\section{Impact of Baryonic Feedback on HSC Y1 Weak Lensing Non-Gaussian Statistics}
+\label{sec:paper2}
+%======================================================================
+
+\subsection{Metadata}
+\textbf{Title:} Impact of Baryonic Feedback on HSC Y1 Weak Lensing Non-Gaussian Statistics. \textbf{Authors:} Daniela Grandón, Gabriela A. Marques, Leander Thiele, Sihao Cheng, Masato Shirasaki, Jia Liu. \textbf{Year:} 2024. \textbf{Venue/ID:} Physical Review D 110, 103539; arXiv:2403.03807 \citep{grandon2024baryonic}. \textbf{Elevator pitch:} the paper quantifies, in a single unified pipeline, how strongly four non-Gaussian weak-lensing statistics are biased by baryonic feedback, both in mock data and in the real HSC-Y1 catalogue.
+
+\subsection{Research Question(s)}
+How much does unmodeled baryonic feedback bias the inferred structure-growth parameter $S_8$ when non-Gaussian (beyond-power-spectrum) weak-lensing statistics are used, and is this bias large enough to matter at HSC-Y1 (Stage-III) precision?
+
+\subsection{Hypothesis / Motivation}
+Non-Gaussian statistics are known, from Fisher forecasts and some real-data analyses, to extract additional small-scale information beyond the power spectrum — but small scales are exactly where baryonic astrophysics (AGN feedback, gas cooling) reshapes the matter distribution most strongly. Because no analytic model exists for how baryons alter non-Gaussian statistics, the authors' implicit hypothesis is that a controlled, simulation-based comparison across several independent hydrodynamical feedback prescriptions is the only tractable way to assess whether this systematic is currently under control, and whether it threatens Stage-IV precision.
+
+\begin{quote}
+\enquote{Baryonic feedback is a major systematic in weak lensing cosmology} \citep[p.~1]{grandon2024baryonic}.
+\end{quote}
+
+\subsection{Data Used}
+Weak-lensing convergence maps are built from an N-body simulation suite of 100 cosmologies spanning $\Omega_m\in[0.1,0.7]$, $S_8\in[0.23,1.1]$ (50 realizations each) used to train the emulator, plus 2268 realizations from 108 full-sky N-body runs used for the covariance matrix. Baryonic feedback is modeled with four independent hydrodynamical scenarios — BAHAMAS low-AGN, fiducial-AGN, high-AGN, and IllustrisTNG ($\kappa$TNG) — each with 10{,}000 realizations paired with a dark-matter-only counterpart, from which a multiplicative baryon-correction factor is derived. The real data are the HSC first-year (Y1) shear catalogue (three usable tomographic bins, $0.3<z<1.2$).
+
+\subsection{ML Methodology}
+The statistical estimators studied are peak counts, minimum counts, the one-point probability distribution function (PDF), and the scattering transform (fixed Morlet wavelets followed by a modulus nonlinearity, borrowing the structure of a convolutional network's first layers but requiring no training):
+
+\begin{quote}
+\enquote{The scattering transform (ST) is a powerful statistical tool borrowing ideas from convolutional neural networks but does not need training} \citep[p.~5]{grandon2024baryonic}.
+\end{quote}
+
+\noindent A Gaussian-Process emulator (radial-basis-function kernel, scikit-learn) trained on the 100 dark-matter-only cosmologies predicts each statistic's data vector as a function of $(S_8,\Omega_m)$; the baryon-correction ratios are then injected multiplicatively into this dark-matter-only prediction. Data compression via the MOPED algorithm reduces every non-Gaussian data vector to the two free parameters before a Gaussian-likelihood MCMC (Cobaya).
+
+\subsection{Cosmological Application}
+$S_8\equiv\sigma_8\sqrt{\Omega_m/0.3}$, and marginally $\Omega_m$, inferred from mock and real HSC-Y1 weak-lensing convergence maps.
+
+\subsection{Key Results}
+Baryonic biases evolve with redshift, being largest in the highest tomographic bin, and with angular scale, being largest at the smallest smoothing (2 arcmin). The BAHAMAS high-AGN model produces up to $\sim$1$\sigma$ bias in mock $S_8$ inference; the PDF is the statistic most affected ($-0.98\sigma$) and minimum counts the most robust ($-0.55\sigma$) at the smallest scales.
+
+\begin{quote}
+\enquote{We find that the impact of baryons on the statistics evolves with redshift[;] this effect is larger for the third tomographic bin in all the statistics considered} \citep[p.~10]{grandon2024baryonic}.
+\end{quote}
+
+\noindent Critically, when the same pipeline is applied to the real HSC-Y1 data without any baryon correction, no statistically significant shift in $S_8$ is found between large- and small-scale analyses ($\leq0.5\sigma$ for every statistic tested) — the baryon-driven bias visible in mocks is not clearly reproduced in the real Stage-III data, suggesting that baryonic feedback is either weaker than the most aggressive simulations predict at this survey depth, or masked by other systematics.
+
+\subsection{Limitations / Open Questions}
+The baryonic feedback models themselves remain theoretically uncertain and disagree substantially with one another, motivating the group's follow-up Bayesian-model-averaging work (Section~\ref{sec:paper3}). The mock-versus-real discrepancy is not fully resolved and could stem from unmodeled intrinsic alignment or other scale-dependent systematics. The analysis targets $S_8$ only; extensions to neutrino mass or modified gravity are left for future work.
+
+%======================================================================
+\section{Stage IV Baryonic Feedback Correction for Non-Gaussianity Inference}
+\label{sec:paper3}
+%======================================================================
+
+\subsection{Metadata}
+\textbf{Title:} Stage IV Baryonic Feedback Correction for Non-Gaussianity Inference. \textbf{Authors:} Daniela Grandón, Elena Sellentin. \textbf{Year:} 2024. \textbf{Venue/ID:} Monthly Notices of the Royal Astronomical Society; arXiv:2407.20448 \citep{grandon2024bma}. \textbf{Elevator pitch:} the paper introduces Bayesian Model Averaging (BMA) over competing baryonic-feedback prescriptions as a principled way to protect Stage-IV-precision peak-count cosmology from baryon-driven bias, without committing to a single, possibly wrong, feedback model.
+
+\subsection{Research Question(s)}
+Given that different hydrodynamical simulations disagree on the magnitude of baryonic feedback, how should several competing, mutually inconsistent feedback models be combined into a single robust posterior for $(\Omega_m, w, S_8)$ at Stage-IV statistical precision, rather than committing to one model that could be wrong?
+
+\subsection{Hypothesis / Motivation}
+Building directly on the companion paper (Section~\ref{sec:paper2}), which found $\sim$1$\sigma$ biases already at Stage-III precision when the wrong feedback model is used, the authors hypothesize that at Stage-IV precision such biases would grow well beyond the statistical error budget. Rather than attempting to further improve any single hydrodynamical model, they adopt Bayesian Model Averaging — letting the data weight each competing model by its own evidence — hypothesizing this is more robust than model selection (i.e., picking only the single best-evidence model) especially when the true model may not even be among the candidates considered.
+
+\begin{quote}
+\enquote{We therefore present a Bayesian solution for accounting for baryonic feedback uncertainty in weak lensing non-Gaussianity inference} \citep[p.~1]{grandon2024bma}.
+\end{quote}
+
+\subsection{Data Used}
+Simulated convergence maps come from the SLICS and cosmo-SLICS $N$-body simulation suites: 100 deg$^2$ maps with Stage-IV-like shape noise and five tomographic bins spanning $0.25<z<2.75$, and 26 cosmo-SLICS cosmologies in $(\Omega_m, w, S_8)$ used to train the emulator. Baryonic feedback is modeled with BAHAMAS low-AGN, fiducial-AGN, and high-AGN hydrodynamical simulations plus a dark-matter-only (DMO) counterpart, each with 10{,}000 realizations, used to build a multiplicative correction factor for the peak-count statistic.
+
+\subsection{ML Methodology}
+A Gaussian-Process emulator (radial-basis-function kernel, scikit-learn) predicts peak counts across ten $\kappa$-bins, five tomographic bins, and two smoothing scales as a function of $(\Omega_m, w, S_8)$; the baryon-correction factor is injected multiplicatively into the emulator mean, separately for each of the four candidate feedback models. The genuinely novel statistical-inference contribution is the Bayesian Model Averaging layer:
+
+\begin{quote}
+\enquote{We account for the uncertainty in the baryonic feedback modeling by implementing Bayesian Model Averaging (BMA), a statistical framework that produces robust predictions for model parameters by combining each model's posterior distributions weighted by its relative probabilities of having generated the data} \citep[p.~3]{grandon2024bma}.
+\end{quote}
+
+\noindent Each feedback model $M_k$ (including DMO) is fit independently via nested sampling (MultiNest/PyMultiNest); Bayesian evidences $P(M_k|x)$ are computed for every model, and the resulting posteriors are combined as an evidence-weighted mixture,
+\begin{equation}
+P(\boldsymbol\theta|\boldsymbol x) = \frac{\sum_k P(\boldsymbol\theta|\boldsymbol x, M_k)\,P(M_k|\boldsymbol x)}{\sum_k P(M_k|\boldsymbol x)},
+\end{equation}
+rather than by selecting a single winning model.
+
+\subsection{Cosmological Application}
+$\Omega_m$, the dark-energy equation-of-state parameter $w$, and $S_8$, inferred from Stage-IV-like weak-lensing peak counts.
+
+\subsection{Key Results}
+When the (in a real analysis, unknown) true baryon model matches one of the four candidates (``Case 1''), fitting the wrong model biases $\Omega_m$ by up to $\sim$4$\sigma$ and $w$, $S_8$ by $\sim$3$\sigma$; the BMA posterior recovers the true cosmology and nearly reproduces the correct single-model posterior, since the data assign it decisive evidence (log Bayes factors up to 12.35). Under model misspecification (``Case 2'', true baryon content a 50/50 mixture of two models absent from the candidate set), all four individual models are biased, but the BMA posterior — combining the two closest models — still recovers the true cosmology within its credible region, including capturing genuine bimodality in $\Omega_m$.
+
+\begin{quote}
+\enquote{This paper presents a Bayesian solution to safeguard parameter inference against biases resulting from baryonic feedback not being correctly modeled in the weak lensing non-Gaussian statistics} \citep[p.~6]{grandon2024bma}.
+\end{quote}
+
+\subsection{Limitations / Open Questions}
+The demonstration is restricted to peak counts, not the full suite of non-Gaussian statistics used elsewhere by the group; only three BAHAMAS feedback variants are considered, a limited slice of the true theoretical uncertainty in baryonic physics; the authors state that emulator training at Stage-IV precision remains an open challenge; and robustness under more extreme misspecification (a true model far outside the convex hull of the candidates) is not tested.
+
+%======================================================================
+\section{Cosmological Constraints from Weak Lensing Scattering Transform Using HSC Y1 Data}
+\label{sec:paper4}
+%======================================================================
+
+\subsection{Metadata}
+\textbf{Title:} Cosmological Constraints from Weak Lensing Scattering Transform Using HSC Y1 Data. \textbf{Authors:} Sihao Cheng, Gabriela A. Marques, Daniela Grandón, Leander Thiele, Masato Shirasaki, Brice Ménard, Jia Liu. \textbf{Year:} 2024. \textbf{Venue/ID:} Monthly Notices of the Royal Astronomical Society; arXiv:2404.16085 \citep{cheng2024scattering}. \textbf{Elevator pitch:} the paper delivers the first application of the weak-lensing scattering transform to real observational data, matching CNN-level constraining power on $\Omega_m$ while remaining interpretable and untrained, and uncovers an internal $S_8$ tension tied to a specific HSC redshift bin.
+
+\subsection{Research Question(s)}
+Can the scattering transform — a wavelet-based, CNN-inspired but untrained statistic — extract non-Gaussian cosmological information from real weak-lensing convergence maps competitively with deep-learning approaches, and what does it reveal about photometric-redshift systematics in HSC?
+
+\subsection{Hypothesis / Motivation}
+Two-point statistics saturate the cosmological information available at small angular scales, but the field lacks consensus on which non-Gaussian estimator to use: moment-based statistics are not robust to outliers, ad hoc statistics capture only particular features, and deep-learning methods, while powerful, are largely uninterpretable. The scattering transform is proposed as a middle ground, since it analytically reproduces a convolutional network's first convolution-plus-modulus layers using fixed (not learned) wavelet filters, inheriting CNN-like sensitivity to hierarchical non-Gaussian structure without requiring training data or sacrificing interpretability:
+
+\begin{quote}
+\enquote{we present the first cosmological constraints with weak lensing scattering transform, a statistical estimator that combines efficiency, robustness, and interpretability} \citep[p.~1]{cheng2024scattering}.
+\end{quote}
+
+\subsection{Data Used}
+The real dataset is the HSC first-year (S16A) shear catalogue: $i$-band imaging over 136.9 deg$^2$ across six fields, $\sim$8.5 million galaxies split into four tomographic redshift bins (edges 0.3, 0.6, 0.9, 1.2, 1.5). Mock catalogues are drawn from two $N$-body simulation suites (full-sky simulations for the covariance matrix, and a 100-cosmology suite spanning $\Omega_m\in[0.1,0.7]$, $S_8\in[0.23,1.1]$ for the emulator).
+
+\subsection{ML Methodology}
+The scattering transform convolves the convergence map $\kappa$ with directional Morlet wavelets at several scales $j$, then applies a pointwise modulus nonlinearity, mimicking a convolutional network's convolution-plus-activation stage:
+\begin{equation}
+I_1^{j,\theta}(x,y) = |\kappa*\psi_{j,\theta}|,\qquad s_1(j)=\langle I_1\rangle_{x,y,\theta},
+\end{equation}
+with second-order coefficients $s_2(j_1,j_2)$ obtained by repeating the convolution-modulus operation on the $I_1$ fields, capturing localized non-Gaussian structure. No training is required, since the filter bank is fixed by construction:
+
+\begin{quote}
+\enquote{It achieves the constraining power of a deep convolutional neural network without the need to train millions of neurons} \citep[p.~3]{cheng2024scattering}.
+\end{quote}
+
+\noindent Because no analytic likelihood exists for the scattering transform, a simulation-based, forward-modeling inference pipeline is used, with intrinsic-alignment and other systematics as nuisance parameters, combined tomographically across 15 individual and joint-map combinations.
+
+\subsection{Cosmological Application}
+$\Omega_m$, $S_8\equiv\sigma_8(\Omega_m/0.3)^{0.5}$, and the intrinsic-alignment amplitude $A_{\rm IA}$.
+
+\subsection{Key Results}
+The joint scattering-transform-plus-power-spectrum analysis yields $\Omega_m=0.29^{+0.04}_{-0.03}$, $S_8=0.83\pm0.02$, $A_{\rm IA}=1.0\pm0.4$, consistent with Planck. Adding the scattering transform tightens the $\Omega_m$ error bar by a factor of 2 relative to the power spectrum alone at the same scale range, matching CNN-level constraining power reported elsewhere without any training; no significant additional tightening of $S_8$ is found once scale-matching and $\Omega_m$–$S_8$ leakage are properly accounted for. A notable secondary finding is an internal $S_8$ tension linked to the third ($z\sim0.9$–$1.2$) tomographic bin: excluding it lowers $S_8$ from 0.83 to 0.79 consistently across every statistic tested.
+
+\begin{quote}
+\enquote{The above internal tension of $S_8$ suggests that photo-z calibration is a main limiting factor for $S_8$ inference in HSC and other ground based surveys reaching a similar depth} \citep[p.~8]{cheng2024scattering}.
+\end{quote}
+
+\subsection{Limitations / Open Questions}
+The lack of an analytic likelihood forces reliance on simulation-based inference with its own emulator and covariance uncertainties. The authors explicitly conclude that further investment in spatial or non-Gaussian information extraction, including deep learning, is unlikely to improve $S_8$ constraints further until photometric-redshift calibration improves. Normalizing-flow-based models (e.g. the ``multiscale flow'') are reported in the literature to outperform both CNNs and the scattering transform on simulations, but remain unvalidated on real data with source clustering and survey masks.
+
+%======================================================================
+\section{Cosmological Constraints Using Minkowski Functionals from HSC-Y1}
+\label{sec:paper5}
+%======================================================================
+
+\subsection{Metadata}
+\textbf{Title:} Cosmological Constraints Using Minkowski Functionals from the First Year Data of the Hyper Suprime-Cam. \textbf{Authors:} Joaquin Armijo, Gabriela A. Marques, Camila P. Novaes, Leander Thiele, Jessica A. Cowell, Daniela Grandón, Masato Shirasaki, Jia Liu. \textbf{Year:} 2025. \textbf{Venue/ID:} Monthly Notices of the Royal Astronomical Society; arXiv:2410.00401 \citep{armijo2025minkowski}. \textbf{Elevator pitch:} the paper applies Minkowski functionals — a purely geometric/topological family of non-Gaussian statistics — to HSC-Y1 convergence maps, obtaining a 40\% tighter $S_8$ constraint than from the power spectrum alone.
+
+\subsection{Research Question(s)}
+How much cosmological information, beyond the two-point function, can Minkowski functionals extract from real HSC-Y1 weak-lensing data, and can they break the $\Omega_m$–$\sigma_8$ degeneracy that limits power-spectrum-only analyses?
+
+\subsection{Hypothesis / Motivation}
+Minkowski functionals are a classical, well-defined (non-learned) topological descriptor with a long history in cosmology, from CMB non-Gaussianity to large-scale-structure morphology. The authors' motivation is to test whether the group's already-established forward-modeling emulator pipeline — shared with the scattering-transform and peak-count analyses of the same collaboration — reproduces, on real Stage-III data and with full posterior (not Fisher-matrix) uncertainty, the gains previously reported only in earlier Fisher-forecast studies.
+
+\begin{quote}
+\enquote{Minkowski functionals provide a description of the morphological properties of a field, capturing the non-Gaussian features of the Universe matter-density distribution} \citep[p.~1]{armijo2025minkowski}.
+\end{quote}
+
+\subsection{Data Used}
+The real dataset is the same HSC-Y1 shear catalogue used in the scattering-transform paper, with three usable tomographic bins (a fourth is excluded due to a systematic flagged prior to unblinding). Two $N$-body simulation suites are used: 108 full-sky realizations for the covariance matrix (2268 mock realizations), and 100 cosmology pairs $(\Omega_m,S_8)$ with 50 realizations each for the Gaussian-Process emulator training set. Systematics are tested using $\kappa$TNG (IllustrisTNG hydrodynamical) baryon maps and non-linear-tidal-alignment intrinsic-alignment mocks.
+
+\subsection{ML Methodology}
+Minkowski functionals ($V_0$ area, $V_1$ perimeter, $V_2$ genus of the excursion set of the convergence field) are defined as
+\begin{equation}
+V_0=\frac{1}{A}\int_{\Sigma(\nu)}\!\mathrm{d}a,\quad
+V_1=\frac{1}{4A}\int_{\partial\Sigma(\nu)}\!\mathrm{d}l,\quad
+V_2=\frac{1}{2\pi A}\int_{\partial\Sigma(\nu)}\!\mathcal{K}\,\mathrm{d}l,
+\end{equation}
+where $\Sigma(\nu)$ is the excursion set above threshold $\nu=\kappa/\sigma_0$.
+
+\begin{quote}
+\enquote{These functions or `gauges' measure the size, shape and connectivity of a manifold} \citep[p.~2]{armijo2025minkowski}.
+\end{quote}
+
+\noindent A Gaussian-Process regression emulator (radial-basis kernel) predicts the combined Minkowski-functional and power-spectrum data vector from cosmology, validated by leave-one-out cross-validation (2--3\% typical error); MOPED-style compression reduces the data vector to the two free parameters, followed by a Gaussian likelihood sampled with Cobaya (Metropolis--Hastings MCMC). As in Section~\ref{sec:paper4}, this is simulation-based/emulator-driven inference rather than deep learning, but it shares the group's broader Gaussian-Process and compression toolkit.
+
+\subsection{Cosmological Application}
+$S_8\equiv\sigma_8\sqrt{\Omega_m/0.3}$ and $\Omega_m$, using the area, perimeter, and genus of the convergence field's excursion sets as observables.
+
+\subsection{Key Results}
+The combined power-spectrum-plus-Minkowski-functional analysis yields $S_8=0.808^{+0.033}_{-0.046}$ and $\Omega_m=0.293^{+0.157}_{-0.043}$, a 40\% improvement in the $S_8$ uncertainty relative to the power spectrum alone. $V_0$ (area) and $V_1$ (perimeter) carry most of the constraining power; $V_2$ (genus) is comparatively weak, a result opposite to some earlier Fisher-forecast literature, attributed to statistical-noise effects neglected in Fisher-only studies.
+
+\begin{quote}
+\enquote{we find that most of the constraining power on $\Omega_m$ and $S_8$ from our combined statistic[s], comes from the area $V_0$ and perimeter $V_1$} \citep[p.~7]{armijo2025minkowski}.
+\end{quote}
+
+\noindent No significant shift in $S_8$ is found from any tested systematic (multiplicative bias, photo-z code choice, baryons, intrinsic alignment) after the group's pre-registered scale cuts, and the results agree with the companion scattering-transform (Section~\ref{sec:paper4}) and peak-count analyses of the same collaboration.
+
+\subsection{Limitations / Open Questions}
+The analysis is restricted to $(\Omega_m,S_8)$ and does not extend to the dark-energy equation of state $w$, unlike an earlier CFHTLenS analysis it is compared against, which found parameter-space biases once $w$ was included. An anomaly in $V_0$ at the first tomographic bin was handled by removing bins from the analysis rather than being physically explained. Emulator accuracy degrades at the extreme tails of the data vector (low/high $\kappa$), where statistical noise dominates.
+
+%======================================================================
+\section{Parametric and Nonparametric Methods Hint Dark Energy Evolution}
+\label{sec:paper6}
+%======================================================================
+
+\subsection{Metadata}
+\textbf{Title:} Parametric and Nonparametric Methods Hint Dark Energy Evolution. \textbf{Authors:} Reginald Christian Bernardo, Daniela Grandón, Jackson Levi Said, Víctor H. Cárdenas. \textbf{Year:} 2022. \textbf{Venue/ID:} Physics of the Dark Universe; arXiv:2111.08289 \citep{bernardo2022parametric}. \textbf{Elevator pitch:} the paper reconstructs the dark-energy density and equation of state using both parametric polynomial fits and Gaussian-Process (ML-adjacent) nonparametric regression, finding that both approaches — despite being methodologically opposite — agree that dark energy deviates from a cosmological constant.
+
+\subsection{Research Question(s)}
+Is there model-independent, data-driven evidence for a time-evolving dark-energy density and equation of state, as opposed to a static cosmological constant, and is such evidence robust both to the choice of reconstruction method (parametric versus nonparametric) and to the choice of $H_0$ prior amid the ongoing Hubble tension?
+
+\subsection{Hypothesis / Motivation}
+The paper's central methodological wager is that if two philosophically opposite approaches — a parametric polynomial expansion that assumes a specific functional form, and a Gaussian-Process nonparametric regression that assumes none — independently converge on the same qualitative departure from $\Lambda$CDM, that departure is more likely to be a genuine data-driven feature than a methodological artifact. Gaussian Processes are chosen specifically as the theory-agnostic, machine-learning-rooted counterpoint to the parametric fits, since they make no assumption about the underlying cosmological model, unlike a traditional fit to a fixed functional form.
+
+\subsection{Data Used}
+Late-time cosmic data comprise 57 Hubble-parameter measurements: 31 cosmic-chronometer $H(z)$ points and 26 baryon-acoustic-oscillation $H(z)r_d$ points ($z=0.07$--$2.36$). These are supplemented with the 1048-supernova Pantheon compilation and a 6-point CANDELS/CLASH $E(z)$ compression. Four literature $H_0$ priors spanning the Hubble tension (Planck/P18, TRGB, A21, Riess/R21) are used, together with a Planck $\Omega_{m0}h^2$ prior to keep the parametric and nonparametric analyses on common ground.
+
+\subsection{ML Methodology}
+Gaussian Process regression (Matérn $\nu=5/2$ kernel) reconstructs $H(z)$ and its derivatives nonparametrically, treating the Hubble data as a draw from a function-space prior defined by a covariance kernel $K(z^*,\tilde z^*)$:
+\begin{equation}
+\langle H^{*(n)}\rangle = K^{(n,0)}(z^*,Z)\left[K(Z,Z)+C\right]^{-1}H(Z),
+\end{equation}
+with kernel hyperparameters optimized by maximizing the marginal likelihood — a standard Gaussian-Process machine-learning procedure. This is contrasted against quadratic and cubic polynomial parametrizations of the normalized dark-energy density $X(z)=\rho_{\rm DE}(z)/\rho_{\rm DE}(0)$, fit via Bayesian MCMC. Physically, the Gaussian Process directly reconstructs the expansion history from data without positing a cosmological model, whereas the polynomial parametrizations impose an explicit functional ansatz for the dark-energy density evolving through the Friedmann equation, $E(z)^2=\Omega_{m0}(1+z)^3+(1-\Omega_{m0})X(z)$.
+
+\subsection{Cosmological Application}
+The normalized dark-energy density $X(z)$, the compactified dark-energy equation of state $\arctan(1+w(z))$, the matter density $\Omega_{m0}$, and the Hubble constant $H_0$.
+
+\subsection{Key Results}
+All three methods (quadratic, cubic, Gaussian Process) outperform $\Lambda$CDM on $\chi^2$, $D$, and $\gamma^2$ goodness-of-fit statistics regardless of the $H_0$ prior used. The reconstructed $X(z)$ and $w(z)$ deviate from the $\Lambda$CDM line at more than 2$\sigma$ at higher redshifts ($z\gtrsim1.5$--$2.3$) across every method and every $H_0$ prior, with the deviation growing for the larger, more locally-calibrated $H_0$ priors.
+
+\begin{quote}
+\enquote{The results hint at dark energy evolution regardless of the choice of the method and of the priors} \citep[p.~1]{bernardo2022parametric}.
+\end{quote}
+
+\begin{quote}
+\enquote{The robustness of this result stands on the observation that the intrinsically contrasting parametric and nonparametric approaches somehow agree in their macrophysical implications} \citep[p.~16]{bernardo2022parametric}.
+\end{quote}
+
+\subsection{Limitations / Open Questions}
+The authors explicitly note that parametric methods carry an unavoidable arbitrariness in how the phenomenological function is parametrized, while Gaussian Processes, like other machine-learning methods, are known to underestimate uncertainty, overfit, and be sensitive to kernel choice:
+
+\begin{quote}
+\enquote{the parametric methods are often criticized for the unavoidable arbitrariness by which the phenomenological functions can be parametrized[,] ... while the GP, among other machine learning methods, is known to underestimate uncertainties, among other quirks} \citep[p.~34]{bernardo2022parametric}.
+\end{quote}
+
+\noindent Dynamical dark energy evidence does not by itself imply modified gravity, and the analysis omits the full covariance matrix for cosmic chronometers and any growth-of-structure (redshift-space-distortion) data that would test the same conclusion against perturbation-level observables.
+
+%======================================================================
+\section{Classical (Non-Machine-Learning) Cosmology Papers}
+\label{sec:nonml}
+%======================================================================
+
+The two papers in this section were included by the user for cosmological context on the interacting dark-energy/dark-matter literature that motivated part of the group's later work. They rely exclusively on classical statistical inference (affine-invariant MCMC fits to phenomenological interaction models) and do not employ machine-learning methods; the ``ML Methodology'' heading below is therefore replaced with a general ``Methodology'' description marked accordingly.
+
+\subsection{Exploring Evidence of Interaction Between Dark Energy and Dark Matter}
+\label{sec:paper7}
+
+\subsubsection{Metadata}
+\textbf{Title:} Exploring Evidence of Interaction Between Dark Energy and Dark Matter. \textbf{Authors:} Daniela Grandón, Víctor H. Cárdenas. \textbf{Year:} 2018. \textbf{Venue/ID:} arXiv:1804.03296 \citep{grandon2018evidence}. \textbf{Elevator pitch:} the paper fits three phenomenological dark-energy/dark-matter interaction models to a combination of five late-time cosmological probes and finds more than 3$\sigma$ evidence for non-zero interaction in two of the three models.
+
+\subsubsection{Research Question(s)}
+Do current low-redshift observations (type Ia supernovae, $H(z)$, baryon acoustic oscillations, cluster gas-mass fraction, cosmic-microwave-background distance priors) favor an explicit energy exchange between dark matter and dark energy over the standard, non-interacting $\Lambda$CDM/$w$CDM scenario?
+
+\subsubsection{Hypothesis / Motivation (N/A --- not machine learning)}
+Since neither dark matter's nor dark energy's microphysical nature is known, the authors argue it is not unreasonable a priori that the two are coupled. The specific empirical trigger is a reported 2.5--3$\sigma$ tension between high-redshift BOSS baryon-acoustic-oscillation measurements at $z=2.34$ and $\Lambda$CDM, which other groups had already suggested might be resolved by an interacting dark-energy model.
+
+\subsubsection{Data Used}
+Compiled Hubble $H(z)$ data (31 cosmic-chronometer points obtained via the differential-age method); the 1048-supernova Pantheon sample with its full covariance matrix; a baryon-acoustic-oscillation compilation including 6dF, SDSS DR7, and BOSS at $z=0.32$, $0.57$, and $2.34$ with full two-dimensional (radial and transverse) constraints; 42 X-ray cluster gas-mass-fraction measurements; and cosmic-microwave-background distance priors (acoustic scale, shift parameter, decoupling redshift) with their covariance matrix.
+
+\subsubsection{Methodology (N/A --- not machine learning)}
+Three phenomenological interaction models parametrize the coupling function $Q$ in the dark-sector conservation equations, $\dot\rho_c+3H\rho_c=Q$, $\dot\rho_d+3H(1+\omega)\rho_d=-Q$, with $Q_1=3\gamma H\rho_d$, $Q_2=3\gamma H\rho_c$, and $Q_3=3\alpha H(\rho_d'+\rho_c')$. Parameters are constrained via an affine-invariant MCMC (the \texttt{emcee} sampler) fitting a joint $\chi^2$ across the five probes, with convergence monitored through the autocorrelation time.
+
+\subsubsection{Cosmological Application}
+The interaction strength $\gamma$ (or $\alpha$), the dark-energy equation-of-state parameter $\omega$, $\Omega_c$, $\Omega_b$, and $h$.
+
+\subsubsection{Key Results}
+Using all five probes jointly, models (i) and (ii) show $\gamma>0$ (energy transfer from dark energy to dark matter) at more than 3$\sigma$; model (iii) shows no significant evidence for interaction once BAO is included, illustrating that the inferred evidence is sensitive to the specific coupling functional form assumed.
+
+\begin{quote}
+\enquote{We find that using all five observational probes together, two of the interaction models show positive evidence at more than 3$\sigma$} \citep[p.~1]{grandon2018evidence}.
+\end{quote}
+
+\begin{quote}
+\enquote{Using the combination of all the data, the models (i) and (ii) show positive evidence for the existence of an interaction already at 1$\sigma$ ... extended up to 3$\sigma$, implying a transfer of energy from DE to DM} \citep[p.~14]{grandon2018evidence}.
+\end{quote}
+
+\subsubsection{Limitations / Open Questions}
+The authors explicitly caution that further study is needed to establish the result firmly:
+
+\begin{quote}
+\enquote{Although this study does not incorporate dynamical constraints, such as those from perturbations, our results seem to indicate a chance to find evidence for a non-zero interaction term in the recent cosmological evolution} \citep[p.~14]{grandon2018evidence}.
+\end{quote}
+
+\noindent The analysis is background-level only, with no perturbation or growth-of-structure constraints, and the interaction evidence is not uniform across the three models tested.
+
+\subsection{Dark Energy and Dark Matter Interaction in Light of the Second Law of Thermodynamics}
+\label{sec:paper8}
+
+\subsubsection{Metadata}
+\textbf{Title:} Dark Energy and Dark Matter Interaction in Light of the Second Law of Thermodynamics. \textbf{Authors:} Víctor H. Cárdenas, Daniela Grandón, Samuel Lepe. \textbf{Year:} 2018. \textbf{Venue/ID:} arXiv:1812.03540 \citep{cardenas2018thermodynamics}. \textbf{Elevator pitch:} the paper derives, from the second law of thermodynamics alone, that a pure cosmological constant is thermodynamically inconsistent, and shows that the same observational data used in the companion paper (Section~\ref{sec:paper7}) favor an interacting dark sector with energy flowing from dark energy to dark matter and a phantom equation of state.
+
+\subsubsection{Research Question(s)}
+Can thermodynamic consistency — the second law, applied to the dark sector as an expanding-universe fluid system — be used as a physical principle to constrain the otherwise arbitrary interaction function $Q$ between dark energy and dark matter, and does it favor a preferred direction of energy flow?
+
+\subsubsection{Hypothesis / Motivation (N/A --- not machine learning)}
+The authors' motivation is that the interaction coupling $Q$ is arbitrary and undetermined from first principles in essentially all interacting dark-sector literature. They propose thermodynamics as an independent physical constraint that could break this arbitrariness, by deriving how the second law dictates the sign of entropy production and the resulting temperature evolution of each dark component under coupling.
+
+\subsubsection{Data Used}
+The same five-probe combination as the companion paper (Section~\ref{sec:paper7}): cosmic-chronometer $H(z)$, the Pantheon supernova sample, 6dF/SDSS/BOSS baryon acoustic oscillations (including high-redshift Lyman-$\alpha$ BAO at $z=2.34$, $2.36$), cluster gas-mass fraction, and cosmic-microwave-background distance priors.
+
+\subsubsection{Methodology (N/A --- not machine learning)}
+An analytic thermodynamic derivation (the second law applied to a comoving volume, with entropy as a state function) establishes that a fluid with equation-of-state parameter $\omega=-1$ (a pure cosmological constant) must have $T=0$ and, by the third law, $S=0$:
+
+\begin{quote}
+\enquote{This result -- independent of the awkward features of existence of a pure cosmological constant component -- tells us that such a component is at least inconsistent with thermodynamic[s] too} \citep[p.~4]{cardenas2018thermodynamics}.
+\end{quote}
+
+\noindent Two interaction ansätze, $Q=3\gamma H\rho_m$ and $Q=3\gamma H\rho_x$, are then solved analytically for the temperature evolution of each dark component and fit to data using the same \texttt{emcee} MCMC procedure as the companion paper.
+
+\subsubsection{Cosmological Application}
+The interaction strength $\gamma$, the dark-energy equation of state $\omega$, and the reconstructed temperature evolution $T_{\rm DM}(z)$, $T_{\rm DE}(z)$ of the two dark components.
+
+\subsubsection{Key Results}
+Best fits for both interaction ansätze converge on $\gamma\approx0.07$ when all five probes are combined, indicating a non-adiabatic universe with energy flowing from dark energy to dark matter, consistent with the paper's thermodynamic argument; the dark-energy equation-of-state parameter is found to be phantom ($\omega<-1$) in both cases.
+
+\begin{quote}
+\enquote{We found that observations suggest the interaction exist with energy flowing from dark energy to dark matter. The best fit also suggest a phantom equation of state parameter for dark energy} \citep[p.~1]{cardenas2018thermodynamics}.
+\end{quote}
+
+\subsubsection{Limitations / Open Questions}
+The authors note that the dark-matter temperature is extremely difficult to measure independently, so the reconstructed temperature evolution cannot currently be cross-checked against direct observations. The analysis remains background-level, with no perturbation or growth data, and the higher interaction strength found relative to earlier work is attributed partly to the inclusion of high-redshift Lyman-$\alpha$ BAO and gas-fraction data, both separately flagged in the literature as being in tension with $\Lambda$CDM:
+
+\begin{quote}
+\enquote{a pure $\Lambda$ component -- understood as a source in the right hand side of Einstein's equations -- does not have any sense thermodynamically} \citep[p.~13]{cardenas2018thermodynamics}.
+\end{quote}
+
+%======================================================================
+\section{Synthesis}
+\label{sec:synthesis}
+%======================================================================
+
+This section steps back from individual papers to identify cross-cutting patterns across the eight-paper corpus, characterize the methodological signature of the research group centered on Daniela Grandón, and propose candidate directions for collaborative research building on the gaps identified above.
+
+\subsection{Comparative Table}
+
+\begin{longtable}{@{}p{3.1cm}p{4.0cm}p{4.0cm}p{4.0cm}@{}}
+\toprule
+\textbf{Paper} & \textbf{ML / statistical architecture} & \textbf{Cosmological problem} & \textbf{Dataset} \\
+\midrule
+\endfirsthead
+\toprule
+\textbf{Paper} & \textbf{ML / statistical architecture} & \textbf{Cosmological problem} & \textbf{Dataset} \\
+\midrule
+\endhead
+\citet{grandon2022bayesian} & Bayesian error-propagation layer over a neural-net emulator (Gaussian error model) & Debiasing parameter inference against neural-net emulator approximation error & Simulated CAMB $P(k)$ (synthetic) \\
+\addlinespace
+\citet{grandon2024baryonic} & Gaussian-Process emulator + scattering transform, peaks, minima, PDF & Baryonic-feedback bias on $S_8$ from non-Gaussian weak-lensing statistics & HSC-Y1 shear catalogue + BAHAMAS/IllustrisTNG hydrodynamical sims \\
+\addlinespace
+\citet{grandon2024bma} & Gaussian-Process emulator + Bayesian Model Averaging over feedback models & Robust $\Omega_m, w, S_8$ inference at Stage-IV precision under baryon-model uncertainty & SLICS / cosmo-SLICS mocks + BAHAMAS hydrodynamical sims \\
+\addlinespace
+\citet{cheng2024scattering} & Scattering transform (untrained, wavelet + modulus) + simulation-based inference & $\Omega_m$, $S_8$, $A_{\rm IA}$ from weak-lensing non-Gaussianity; photo-$z$ systematics & HSC-Y1 real data + $N$-body mocks \\
+\addlinespace
+\citet{armijo2025minkowski} & Gaussian-Process emulator + Minkowski functionals ($V_0,V_1,V_2$) & $\Omega_m$, $S_8$ from weak-lensing field topology/morphology & HSC-Y1 real data + $N$-body mocks \\
+\addlinespace
+\citet{bernardo2022parametric} & Gaussian-Process regression vs.\ polynomial parametrization & Dark-energy density/equation-of-state evolution vs.\ $\Lambda$CDM & Cosmic chronometers + BAO $H(z)$, Pantheon SNe Ia \\
+\bottomrule
+\end{longtable}
+
+\noindent \textit{The two non-machine-learning papers} \citep{grandon2018evidence,cardenas2018thermodynamics} \textit{are omitted from this table since they use classical MCMC fits to interacting dark-sector models rather than an ML architecture; they are summarized separately in Section~\ref{sec:nonml}.}
+
+\subsection{Recurring Methodological Signature}
+
+Several patterns recur across the six machine-learning-adjacent papers and are worth making explicit, since they likely characterize how this research group approaches problems.
+
+\textbf{Gaussian Processes, not deep networks, are the group's default ML tool.} Four of the six ML papers rely on Gaussian-Process emulators (either to accelerate a cosmological-statistic prediction, as in the baryonic-feedback and Minkowski-functional papers, or as a nonparametric reconstruction method for $H(z)$, as in the dark-energy paper). The one paper about neural networks specifically is about correcting a neural net's own uncertainty rather than about designing a new architecture. No convolutional neural network, graph neural network, transformer, or normalizing flow is actually trained end-to-end on cosmological data anywhere in this corpus, despite these being repeatedly cited as benchmarks or motivations.
+
+\textbf{Non-Gaussian, higher-order weak-lensing statistics applied to a shared HSC-Y1 pipeline.} The scattering-transform, Minkowski-functional, and baryonic-feedback papers share the same underlying HSC-Y1 data, largely the same $N$-body/hydrodynamical simulation suites, and several co-authors (Marques, Thiele, Shirasaki, Liu, Cheng), indicating a coherent, actively maintained collaborative pipeline rather than one-off analyses.
+
+\textbf{Systematics as a first-class research object.} Three of the eight papers are explicitly about quantifying or correcting a systematic (baryonic feedback) rather than about a new cosmological detection; a fourth explicitly targets debiasing neural-net emulators. Robustness and uncertainty quantification appear to be a deliberate specialization, not an afterthought.
+
+\textbf{Simulation-based / forward-modeling inference throughout.} Every ML paper in the corpus performs inference via an emulated data vector plugged into a Gaussian (or Student-$t$) likelihood sampled with MCMC or nested sampling (Cobaya, MultiNest), rather than amortized or implicit-likelihood deep-learning inference. The ``machine learning'' in this corpus is concentrated in emulation and uncertainty propagation, not representation learning.
+
+\textbf{A visible methodological trajectory over time.} The two 2018 papers and the 2022 parametric/nonparametric paper belong to an earlier line of work on interacting dark-energy phenomenology and late-time background reconstruction, using classical MCMC and (in one case) Gaussian Processes as a nonparametric alternative. The 2022--2025 papers move toward Gaussian-Process emulation and Bayesian uncertainty propagation applied specifically to weak-lensing non-Gaussian statistics and their systematics. Bayesian rigor — explicit priors, evidence-based model comparison, careful propagation of model and measurement uncertainty — is the throughline across both eras, more so than any specific architecture.
+
+\subsection{Candidate Directions for Joint Research}
+
+\begin{enumerate}[leftmargin=1.4em]
+\item \textbf{Benchmark a trained deep-learning model against the group's own non-Gaussian-statistics pipeline on real HSC-Y1 data.} No CNN, graph neural network, or normalizing flow is actually trained end-to-end on real data anywhere in this corpus; the scattering transform is explicitly untrained, and Gaussian Processes are low-dimensional emulators. Both the scattering-transform and Minkowski-functional papers cite normalizing-flow-based methods (e.g.\ the multiscale flow of \citealt{cheng2024scattering}) as reportedly outperforming their own statistic on simulations, but flag that this comparison has not been validated on real data with source clustering and survey masks. Implementing and directly comparing such a model against the group's established scattering-transform/Minkowski pipeline on HSC-Y1 would close a gap the papers themselves identify as open.
+
+\item \textbf{Unify the two uncertainty-propagation frameworks (neural-net error and baryon-model uncertainty).} The Bayesian error-propagation method \citep{grandon2022bayesian} and the Bayesian Model Averaging method \citep{grandon2024bma} both address marginalizing over a source of theoretical/model uncertainty, but were developed independently for unrelated problems. A joint posterior that simultaneously marginalizes over baryon-feedback model choice \emph{and} neural-net emulator approximation error would directly serve Stage-IV pipelines, which will need both machineries at once, and represents a natural mathematical unification of two frameworks already in the group's toolkit.
+
+\item \textbf{Apply machine learning to photometric-redshift self-calibration itself.} Papers~\ref{sec:paper4} and \ref{sec:paper5} both identify photo-$z$ calibration, not choice of statistic or ML tool, as the dominant remaining systematic limiting $S_8$ in HSC-like surveys. Yet none of the eight papers apply machine learning to the photo-$z$ estimation problem itself, only to the downstream cosmological inference. A thesis-scale project could apply the group's existing Gaussian-Process/emulator machinery, or a dedicated learned redshift-calibration network, directly to the self-calibration problem that HSC Y3 analyses currently address with ad hoc offset nuisance parameters.
+
+\item \textbf{Extend the non-Gaussian-statistics pipeline beyond $\Omega_m$/$S_8$ to the dark-energy equation of state or neutrino mass.} All four non-Gaussian-statistics papers (Sections~\ref{sec:paper2}--\ref{sec:paper5}) constrain only $\Omega_m$ and $S_8$; the group's own cited literature (e.g.\ Minkowski-functional neutrino-mass constraints) suggests an unexploited extension of the same HSC-Y1 pipeline to $w$ or to neutrino mass, which would also bridge the weak-lensing non-Gaussian-statistics line of work with the dark-energy-evolution line (Section~\ref{sec:paper6}) that is otherwise disconnected from it within this corpus.
+
+\item \textbf{Reconstruct the dark-sector interaction function non-parametrically.} The Gaussian-Process dark-energy reconstruction \citep{bernardo2022parametric} and the interacting-dark-sector papers (Section~\ref{sec:nonml}) both study departures from $\Lambda$CDM using late-time background data, but through unconnected formalisms: a nonparametric reconstruction of $X(z)$/$w(z)$ versus an explicit interacting-fluid model with a fixed coupling ansatz $Q\propto H\rho$. Using the Gaussian-Process machinery of Section~\ref{sec:paper6} to reconstruct the interaction function $Q(z)$ directly from data, without assuming its functional form, would test model-independently whether the interacting-dark-sector picture from the group's 2018 papers remains supported by more recent, higher-precision data.
+\end{enumerate}
+
+\bigskip
+\noindent \textit{Note on document integrity:} all eight PDF files supplied were successfully parsed as text (none were scanned images or corrupted), so no content in this review had to be inferred or reconstructed from incomplete source material.
+
+\bibliographystyle{plainnat}
+\bibliography{ml_cosmology_review}
+
+\end{document}

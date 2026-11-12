@@ -1,0 +1,5 @@
+data_hsc_y1/
+*.fits
+*.fits.gz
+.ipynb_checkpoints/
+.DS_Store
